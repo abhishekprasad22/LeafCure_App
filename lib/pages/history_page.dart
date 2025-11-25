@@ -48,7 +48,8 @@ class HistoryPage extends StatelessWidget {
                   mainAxisSpacing: 16,
                 ),
                 itemCount: pastPredictions.length,
-                itemBuilder: (context, i) => _buildCard(pastPredictions[i], isDesktop),
+                itemBuilder: (context, i) =>
+                    _buildCard(pastPredictions[i], isDesktop),
               )
             : ListView.builder(
                 itemCount: pastPredictions.length,

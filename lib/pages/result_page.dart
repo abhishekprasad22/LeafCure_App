@@ -4,22 +4,64 @@ import 'package:flutter/material.dart';
 
 class ResultPage extends StatelessWidget {
   final dynamic image; // File (mobile) or Uint8List (web)
-  const ResultPage({super.key, required this.image});
+  final Map<String, dynamic> analysisResult; // JSON data from backend
+
+  const ResultPage({
+    super.key,
+    required this.image,
+    required this.analysisResult,
+  });
+
+  // Helper to get formatted name
+  String _formatName(String raw) {
+    return raw
+        .replaceAll('_', ' ')
+        .split(' ')
+        .map((str) {
+          return str.isNotEmpty
+              ? '${str[0].toUpperCase()}${str.substring(1)}'
+              : '';
+        })
+        .join(' ');
+  }
+
+  // Helper to get Cure based on disease
+  String _getCure(String diseaseKey) {
+    switch (diseaseKey.toLowerCase()) {
+      case 'brown_blight':
+        return "Spray copper oxychloride (2g/liter) every 10–15 days. Improve drainage and avoid overcrowding of bushes.";
+      case 'gray_blight':
+        return "Remove infected leaves immediately. Apply systemic fungicides like Carbendazim.";
+      case 'red_rust':
+        return "Apply potassium fertilizers. Spray Bordeaux mixture (1%) during the dormant season.";
+      case 'algal_leaf_spot':
+        return "Prune infected branches. Ensure proper ventilation and sunlight penetration.";
+      case 'healthy':
+        return "Great job! Your tea plant is healthy. Keep maintaining good soil nutrition and hydration.";
+      default:
+        return "Consult a local agricultural expert for specific treatment advice.";
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    const String disease = "Grey Blight";
-    const String cure =
-        "Spray copper oxychloride (2g/liter of water) every 10–15 days. "
-        "Ensure proper drainage and remove infected leaves to prevent spread.";
-
     final bool isDesktop = MediaQuery.of(context).size.width > 800;
     final double cardPadding = isDesktop ? 24 : 16;
-    final double fontSize = isDesktop ? 16 : 14;
     final double imageHeight = isDesktop ? 300 : 220;
-    final double cardWidth = isDesktop ? 500 : double.infinity;
+    final double cardWidth = isDesktop ? 600 : double.infinity;
 
-    // Convert image to Uint8List if it's a File
+    // Extract Data from JSON
+    final String predictionRaw =
+        analysisResult['final_prediction'] ?? 'Unknown';
+    final String predictionDisplay = _formatName(predictionRaw);
+    final double confidence = analysisResult['final_confidence'] != null
+        ? (analysisResult['final_confidence'] as num).toDouble()
+        : 0.0;
+    final int voteCount = analysisResult['vote_count'] ?? 0;
+    final int totalModels = analysisResult['total_models'] ?? 0;
+    final List details = analysisResult['details'] ?? [];
+
+    // Image conversion
     Uint8List? imageBytes;
     if (kIsWeb) {
       imageBytes = image as Uint8List;
@@ -32,25 +74,20 @@ class ResultPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          "Prediction Result",
+          "Analysis Report",
           style: TextStyle(color: Colors.white),
         ),
         centerTitle: true,
         backgroundColor: const Color(0xFF2E7D32),
         elevation: 4,
-        iconTheme: const IconThemeData(
-          color: Colors.white, // Back arrow color set to white
-        ),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [
-              Color(0xFFE8F5E9),
-              Color(0xFFC8E6C9),
-            ],
+            colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -59,9 +96,8 @@ class ResultPage extends StatelessWidget {
           padding: EdgeInsets.all(cardPadding),
           child: Center(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Image Container
+                // 1. Image Card
                 Container(
                   width: isDesktop ? 450 : double.infinity,
                   height: imageHeight,
@@ -73,23 +109,16 @@ class ResultPage extends StatelessWidget {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(20),
                     child: imageBytes == null
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                              color: Colors.white,
-                            ),
+                        ? const Icon(
+                            Icons.image_not_supported,
+                            color: Colors.white,
                           )
-                        : Image.memory(
-                            imageBytes,
-                            fit: BoxFit.contain,
-                            width: double.infinity,
-                            height: double.infinity,
-                          ),
+                        : Image.memory(imageBytes, fit: BoxFit.contain),
                   ),
                 ),
+                const SizedBox(height: 25),
 
-                const SizedBox(height: 30),
-
-                // Disease & Cure Card
+                // 2. Main Result Card
                 Container(
                   width: cardWidth,
                   padding: EdgeInsets.all(cardPadding),
@@ -98,61 +127,163 @@ class ResultPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.15),
+                        color: Colors.black.withOpacity(0.1),
                         blurRadius: 10,
                         offset: const Offset(0, 5),
                       ),
                     ],
                   ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
-                        "Predicted Disease",
+                        "Diagnosis Result",
                         style: TextStyle(
-                          fontSize: isDesktop ? 22 : 18,
+                          fontSize: isDesktop ? 16 : 14,
                           fontWeight: FontWeight.bold,
-                          color: const Color(0xFF2E7D32),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        disease,
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: isDesktop ? 26 : 20,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                      Divider(
-                        color: Colors.green.shade200,
-                        thickness: 1.2,
-                        indent: 20,
-                        endIndent: 20,
-                      ),
-                      const SizedBox(height: 20),
-                      Text(
-                        "Cure / Treatment",
-                        style: TextStyle(
-                          fontSize: isDesktop ? 22 : 18,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF2E7D32),
+                          color: Colors.grey[600],
+                          letterSpacing: 1.0,
                         ),
                       ),
                       const SizedBox(height: 10),
                       Text(
-                        cure,
-                        textAlign: TextAlign.center,
+                        predictionDisplay,
                         style: TextStyle(
-                          fontSize: fontSize,
-                          height: 1.6,
-                          color: Colors.black87,
+                          fontSize: isDesktop ? 28 : 24,
+                          fontWeight: FontWeight.w800,
+                          color: predictionRaw.toLowerCase() == 'healthy'
+                              ? Colors.green[700]
+                              : Colors.red[700],
+                        ),
+                      ),
+                      const SizedBox(height: 5),
+                      // Confidence Bar
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 10,
+                        ),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text("Confidence Level"),
+                                Text("${confidence.toStringAsFixed(1)}%"),
+                              ],
+                            ),
+                            const SizedBox(height: 5),
+                            LinearProgressIndicator(
+                              value: confidence / 100,
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(5),
+                              backgroundColor: Colors.grey[200],
+                              color: confidence > 70
+                                  ? Colors.green
+                                  : (confidence > 40
+                                        ? Colors.orange
+                                        : Colors.red),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 15),
+                      // AI Voting Summary
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.how_to_vote,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              "$voteCount out of $totalModels AI models agreed on this result.",
+                              style: TextStyle(
+                                color: Colors.blue[900],
+                                fontSize: isDesktop ? 14 : 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
+                ),
+
+                const SizedBox(height: 25),
+
+                // 3. Treatment Card (Only if not healthy)
+                if (predictionRaw.toLowerCase() != 'healthy')
+                  Container(
+                    width: cardWidth,
+                    padding: EdgeInsets.all(cardPadding),
+                    margin: const EdgeInsets.only(bottom: 25),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(
+                              Icons.medical_services_outlined,
+                              color: Color(0xFF2E7D32),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              "Recommended Cure",
+                              style: TextStyle(
+                                fontSize: isDesktop ? 20 : 18,
+                                fontWeight: FontWeight.bold,
+                                color: const Color(0xFF2E7D32),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 15),
+                        Text(
+                          _getCure(predictionRaw),
+                          style: TextStyle(
+                            fontSize: isDesktop ? 16 : 14,
+                            height: 1.6,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // 4. Model Details Expandable (Debug Info)
+                ExpansionTile(
+                  title: const Text("View AI Analysis Details"),
+                  children: details.map<Widget>((model) {
+                    return ListTile(
+                      title: Text(model['model_name'] ?? 'Model'),
+                      subtitle: Text(
+                        "Transform: ${model['used_transform']} | Confidence: ${(model['confidence'] as num).toStringAsFixed(1)}%",
+                      ),
+                      trailing: Text(
+                        _formatName(model['prediction'] ?? ''),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    );
+                  }).toList(),
                 ),
 
                 const SizedBox(height: 30),
@@ -163,28 +294,15 @@ class ResultPage extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: () => Navigator.pop(context),
                     icon: const Icon(Icons.arrow_back_rounded, size: 20),
-                    label: Text(
-                      "Back",
-                      style: TextStyle(fontSize: isDesktop ? 18 : 16),
-                    ),
+                    label: const Text("Analyze Another"),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF2E7D32),
                       foregroundColor: Colors.white,
-                      elevation: 4,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                  ),
-                ),
-
-                const SizedBox(height: 15),
-                Text(
-                  "Analyzed successfully 🌿",
-                  style: TextStyle(
-                    color: Colors.green[900]?.withOpacity(0.9),
-                    fontSize: isDesktop ? 16 : 14,
                   ),
                 ),
               ],
