@@ -18,16 +18,19 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import './pages/login_page.dart'; // Check this path matches your folder structure
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 👇 Initialize Supabase here
+  // Load the .env file
+  await dotenv.load(fileName: ".env");
+
+  // Initialize Supabase using the environment variables
   await Supabase.initialize(
-    url:
-        'https://ljyroclvlsgvsrudgarl.supabase.co', // Paste from Supabase Settings > API
-    anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxqeXJvY2x2bHNndnNydWRnYXJsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjM0MzkwMTksImV4cCI6MjA3OTAxNTAxOX0.fRSK8CgHHKU-UEqRC5Xaen3FI-Y4tXF-8pVaYepEW3g', // Paste from Supabase Settings > API
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
   runApp(MyApp());
