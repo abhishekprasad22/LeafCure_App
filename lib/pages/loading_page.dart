@@ -40,10 +40,10 @@ class _LoadingPageState extends State<LoadingPage> {
     String baseUrl = kReleaseMode
         ? 'http://your-production-server.com'
         : (kIsWeb
-              ? 'http://localhost:8000'
-              : (Platform.isAndroid
-                    ? 'http://10.0.2.2:8000'
-                    : 'http://localhost:8000'));
+        ? 'http://localhost:8000'
+        : (Platform.isAndroid
+        ? 'http://10.0.2.2:8000'
+        : 'http://localhost:8000'));
 
     final uri = Uri.parse('$baseUrl/analyze_leaf');
     // -----------------------------------------------
@@ -51,45 +51,41 @@ class _LoadingPageState extends State<LoadingPage> {
     try {
       var request = http.MultipartRequest('POST', uri);
 
-      // 1. Web Implementation (Already Good)
-      if (kIsWeb && _imageBytes != null) {
+      // ✅ FIX: Check for Bytes first (Works on Web AND Mobile)
+      if (widget.image is Uint8List) {
+        final bytes = widget.image as Uint8List;
         request.files.add(
           http.MultipartFile.fromBytes(
-            'file',
-            _imageBytes!,
-            filename: 'leaf.jpg',
+            'file', // key matches FastAPI
+            bytes,
+            filename: 'leaf.jpg', // Filename is required for the backend to detect it as a file
             contentType: MediaType('image', 'jpeg'),
           ),
         );
       }
-      // 2. Mobile/Desktop Implementation (👇 THE FIX IS HERE)
-      // For mobile/desktop - try without forcing filename extension
+      // ✅ Keep File logic just in case you pass a File directly later
       else if (widget.image is File) {
         final file = widget.image as File;
         final extension = file.path.split('.').last.toLowerCase();
-
         request.files.add(
           await http.MultipartFile.fromPath(
-            'file', // Must match FastAPI parameter name
+            'file',
             file.path,
-            contentType: MediaType(
-              'image',
-              extension == 'png' ? 'png' : 'jpeg',
-            ),
+            contentType: MediaType('image', extension == 'png' ? 'png' : 'jpeg'),
           ),
         );
+      }
+      else {
+        throw Exception("Unknown image type: ${widget.image.runtimeType}");
       }
 
       // Send Request
       var response = await request.send();
-      final responseData = await response.stream
-          .bytesToString(); // Read response once
+      final responseData = await response.stream.bytesToString();
 
       if (response.statusCode == 200) {
         final jsonMap = jsonDecode(responseData);
-
         if (!mounted) return;
-
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) =>
@@ -97,11 +93,9 @@ class _LoadingPageState extends State<LoadingPage> {
           ),
         );
       } else {
-        // 👇 This helps you debug! It prints exactly why FastAPI rejected it.
         print("SERVER ERROR: ${response.statusCode}");
         print("ERROR BODY: $responseData");
-        print("SERVER ERROR: ${response.statusCode}");
-        throw Exception('Server error: ${response.statusCode} - $responseData');
+        throw Exception('Server error: ${response.statusCode}');
       }
     } catch (e) {
       if (!mounted) return;
@@ -109,12 +103,92 @@ class _LoadingPageState extends State<LoadingPage> {
         SnackBar(
           content: Text("Error: ${e.toString().substring(0, 50)}..."),
           backgroundColor: Colors.red,
-          duration: const Duration(seconds: 5),
         ),
       );
-      Navigator.pop(context);
+      Navigator.pop(context); // Go back on error
     }
   }
+
+  // Future<void> _analyzeDisease() async {
+  //   // ---------------- CONFIGURATION ----------------
+  //   String baseUrl = kReleaseMode
+  //       ? 'http://your-production-server.com'
+  //       : (kIsWeb
+  //             ? 'http://localhost:8000'
+  //             : (Platform.isAndroid
+  //                   ? 'http://10.0.2.2:8000'
+  //                   : 'http://localhost:8000'));
+  //
+  //   final uri = Uri.parse('$baseUrl/analyze_leaf');
+  //   // -----------------------------------------------
+  //
+  //   try {
+  //     var request = http.MultipartRequest('POST', uri);
+  //
+  //     // 1. Web Implementation (Already Good)
+  //     if (kIsWeb && _imageBytes != null) {
+  //       request.files.add(
+  //         http.MultipartFile.fromBytes(
+  //           'file',
+  //           _imageBytes!,
+  //           filename: 'leaf.jpg',
+  //           contentType: MediaType('image', 'jpeg'),
+  //         ),
+  //       );
+  //     }
+  //     // 2. Mobile/Desktop Implementation (👇 THE FIX IS HERE)
+  //     // For mobile/desktop - try without forcing filename extension
+  //     else if (widget.image is File) {
+  //       final file = widget.image as File;
+  //       final extension = file.path.split('.').last.toLowerCase();
+  //
+  //       request.files.add(
+  //         await http.MultipartFile.fromPath(
+  //           'file', // Must match FastAPI parameter name
+  //           file.path,
+  //           contentType: MediaType(
+  //             'image',
+  //             extension == 'png' ? 'png' : 'jpeg',
+  //           ),
+  //         ),
+  //       );
+  //     }
+  //
+  //     // Send Request
+  //     var response = await request.send();
+  //     final responseData = await response.stream
+  //         .bytesToString(); // Read response once
+  //
+  //     if (response.statusCode == 200) {
+  //       final jsonMap = jsonDecode(responseData);
+  //
+  //       if (!mounted) return;
+  //
+  //       Navigator.of(context).pushReplacement(
+  //         MaterialPageRoute(
+  //           builder: (_) =>
+  //               ResultPage(image: widget.image, analysisResult: jsonMap),
+  //         ),
+  //       );
+  //     } else {
+  //       // 👇 This helps you debug! It prints exactly why FastAPI rejected it.
+  //       print("SERVER ERROR: ${response.statusCode}");
+  //       print("ERROR BODY: $responseData");
+  //       print("SERVER ERROR: ${response.statusCode}");
+  //       throw Exception('Server error: ${response.statusCode} - $responseData');
+  //     }
+  //   } catch (e) {
+  //     if (!mounted) return;
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       SnackBar(
+  //         content: Text("Error: ${e.toString().substring(0, 50)}..."),
+  //         backgroundColor: Colors.red,
+  //         duration: const Duration(seconds: 5),
+  //       ),
+  //     );
+  //     Navigator.pop(context);
+  //   }
+  // }
 
   @override
   Widget build(BuildContext context) {
