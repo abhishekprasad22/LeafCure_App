@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart'; // helpful for content types
 import 'result_page.dart';
+import 'package:geolocator/geolocator.dart';
 
 class LoadingPage extends StatefulWidget {
   final dynamic image; // File (mobile) or Uint8List (web)
-  const LoadingPage({required this.image, super.key});
+  final bool useWeather;
+  const LoadingPage({required this.image, required this.useWeather, super.key});
 
   @override
   State<LoadingPage> createState() => _LoadingPageState();
@@ -35,21 +37,55 @@ class _LoadingPageState extends State<LoadingPage> {
     setState(() {});
   }
 
+  Future<Position?> _determinePosition() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) return null;
+
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return null;
+    }
+
+    if (permission == LocationPermission.deniedForever) return null;
+
+    return await Geolocator.getCurrentPosition();
+  }
+
   Future<void> _analyzeDisease() async {
     // ---------------- CONFIGURATION ----------------
     String baseUrl = kReleaseMode
         ? 'http://your-production-server.com'
         : (kIsWeb
-        ? 'http://localhost:8000'
-        : (Platform.isAndroid
-        ? 'http://10.0.2.2:8000'
-        : 'http://localhost:8000'));
+              ? 'http://localhost:8000'
+              : (Platform.isAndroid
+                    ? 'http://10.0.2.2:8000'
+                    : 'http://localhost:8000'));
 
     final uri = Uri.parse('$baseUrl/analyze_leaf');
     // -----------------------------------------------
 
     try {
       var request = http.MultipartRequest('POST', uri);
+
+      // Weather Toggle
+      request.fields['use_weather'] = widget.useWeather.toString();
+
+      // GPS (Only if enabled)
+      if (widget.useWeather) {
+        Position? pos = await _determinePosition();
+        if (pos != null) {
+          request.fields['lat'] = pos.latitude.toString();
+          request.fields['lon'] = pos.longitude.toString();
+          print("GPS Sent: ${pos.latitude}, ${pos.longitude}");
+        } else {
+          print("GPS failed, falling back to standard AI");
+          request.fields['use_weather'] = 'false';
+        }
+      }
 
       // ✅ FIX: Check for Bytes first (Works on Web AND Mobile)
       if (widget.image is Uint8List) {
@@ -58,7 +94,8 @@ class _LoadingPageState extends State<LoadingPage> {
           http.MultipartFile.fromBytes(
             'file', // key matches FastAPI
             bytes,
-            filename: 'leaf.jpg', // Filename is required for the backend to detect it as a file
+            filename:
+                'leaf.jpg', // Filename is required for the backend to detect it as a file
             contentType: MediaType('image', 'jpeg'),
           ),
         );
@@ -71,11 +108,13 @@ class _LoadingPageState extends State<LoadingPage> {
           await http.MultipartFile.fromPath(
             'file',
             file.path,
-            contentType: MediaType('image', extension == 'png' ? 'png' : 'jpeg'),
+            contentType: MediaType(
+              'image',
+              extension == 'png' ? 'png' : 'jpeg',
+            ),
           ),
         );
-      }
-      else {
+      } else {
         throw Exception("Unknown image type: ${widget.image.runtimeType}");
       }
 

@@ -14,6 +14,7 @@ class _HomePageState extends State<HomePage> {
   String userName = "User";
   String userEmail = "Loading...";
   String? userAvatar;
+  bool _useWeatherLogic = false;
 
   @override
   void initState() {
@@ -238,6 +239,45 @@ class _HomePageState extends State<HomePage> {
                           // Buttons
                           Column(
                             children: [
+                              Container(
+                                margin: const EdgeInsets.only(bottom: 20),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(15),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _useWeatherLogic
+                                          ? Icons.cloud_done
+                                          : Icons.cloud_off,
+                                      color: Colors.white,
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Text(
+                                      "AI + Weather Logic",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Switch(
+                                      value: _useWeatherLogic,
+                                      activeColor: Colors.white,
+                                      activeTrackColor: Colors.green[900],
+                                      onChanged: (val) {
+                                        setState(() => _useWeatherLogic = val);
+                                      },
+                                    ),
+                                  ],
+                                ),
+                              ),
+
                               SizedBox(
                                 width: double.infinity,
                                 height: isDesktop ? 48 : 42,
@@ -262,7 +302,7 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   onPressed: () => Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => CapturePage(),
+                                      builder: (_) => CapturePage(useWeather: _useWeatherLogic),
                                     ),
                                   ),
                                 ),

@@ -5,7 +5,8 @@ import 'package:image_picker/image_picker.dart';
 import 'preview_page.dart';
 
 class CapturePage extends StatefulWidget {
-  const CapturePage({super.key});
+  final bool useWeather;
+  const CapturePage({required this.useWeather, super.key});
 
   @override
   State<CapturePage> createState() => _CapturePageState();
@@ -149,7 +150,7 @@ class _CapturePageState extends State<CapturePage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (_) =>
-                                      PreviewPage(image: _image),
+                                      PreviewPage(image: _image, useWeather: widget.useWeather),
                                 ),
                               );
                             }

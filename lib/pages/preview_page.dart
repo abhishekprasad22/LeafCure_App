@@ -7,7 +7,8 @@ import 'loading_page.dart';
 
 class PreviewPage extends StatefulWidget {
   final dynamic image; // File (mobile) or Uint8List (web)
-  const PreviewPage({required this.image, super.key});
+  final bool useWeather; // Add this
+  const PreviewPage({required this.image, required this.useWeather, super.key});
 
   @override
   State<PreviewPage> createState() => _PreviewPageState();
@@ -163,7 +164,7 @@ class _PreviewPageState extends State<PreviewPage> {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) =>
-                                          LoadingPage(image: _imageBytes!),
+                                          LoadingPage(image: _imageBytes!, useWeather: widget.useWeather),
                                     ),
                                   );
                                 },

@@ -35,7 +35,12 @@ class ResultPage extends StatelessWidget {
       case 'red_rust':
         return "Apply potassium fertilizers. Spray Bordeaux mixture (1%) during the dormant season.";
       case 'algal_leaf_spot':
+      case 'algal_spot':
         return "Prune infected branches. Ensure proper ventilation and sunlight penetration.";
+      case 'helopeltis':
+        return "Apply Thiamethoxam or Deltamethrin sprays. Monitor closely during early morning or evening.";
+      case 'red_spot':
+        return "Apply proper fungicides and maintain soil potash levels.";
       case 'healthy':
         return "Great job! Your tea plant is healthy. Keep maintaining good soil nutrition and hydration.";
       default:
@@ -60,6 +65,11 @@ class ResultPage extends StatelessWidget {
     final int voteCount = analysisResult['vote_count'] ?? 0;
     final int totalModels = analysisResult['total_models'] ?? 0;
     final List details = analysisResult['details'] ?? [];
+
+    // Extract Weather Data
+    final Map<String, dynamic>? weatherData = analysisResult['weather_data'];
+    final bool usedWeather = weatherData != null;
+    final double? avgTemp = usedWeather ? weatherData['avg_temp_30d'] : null;
 
     // Image conversion
     Uint8List? imageBytes;
@@ -220,7 +230,72 @@ class ResultPage extends StatelessWidget {
 
                 const SizedBox(height: 25),
 
-                // 3. Treatment Card (Only if not healthy)
+                // 3. WEATHER ANALYSIS CARD (New)
+                if (usedWeather)
+                  Container(
+                    width: cardWidth,
+                    padding: EdgeInsets.all(cardPadding),
+                    margin: const EdgeInsets.only(bottom: 25),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.orange[50]!, Colors.orange[100]!],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.wb_sunny,
+                            color: Colors.orange,
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "Weather Logic Applied",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                "Avg Temp (30 Days): ${avgTemp?.toStringAsFixed(1)}°C",
+                                style: TextStyle(
+                                  color: Colors.brown,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              Text(
+                                "Result verified against local climate.",
+                                style: TextStyle(
+                                  color: Colors.brown,
+                                  fontSize: 12,
+                                  fontStyle: FontStyle.italic,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // 4. Treatment Card (Only if not healthy)
                 if (predictionRaw.toLowerCase() != 'healthy')
                   Container(
                     width: cardWidth,
@@ -269,7 +344,7 @@ class ResultPage extends StatelessWidget {
                     ),
                   ),
 
-                // 4. Model Details Expandable (Debug Info)
+                // 5. Model Details Expandable (Debug Info)
                 ExpansionTile(
                   title: const Text("View AI Analysis Details"),
                   children: details.map<Widget>((model) {
