@@ -18,10 +18,10 @@ class ResultPage extends StatelessWidget {
         .replaceAll('_', ' ')
         .split(' ')
         .map((str) {
-          return str.isNotEmpty
-              ? '${str[0].toUpperCase()}${str.substring(1)}'
-              : '';
-        })
+      return str.isNotEmpty
+          ? '${str[0].toUpperCase()}${str.substring(1)}'
+          : '';
+    })
         .join(' ');
   }
 
@@ -59,17 +59,22 @@ class ResultPage extends StatelessWidget {
     final String predictionRaw =
         analysisResult['final_prediction'] ?? 'Unknown';
     final String predictionDisplay = _formatName(predictionRaw);
+
+    // ✅ SAFE PARSING: Confidence
     final double confidence = analysisResult['final_confidence'] != null
         ? (analysisResult['final_confidence'] as num).toDouble()
         : 0.0;
+
     final int voteCount = analysisResult['vote_count'] ?? 0;
     final int totalModels = analysisResult['total_models'] ?? 0;
     final List details = analysisResult['details'] ?? [];
 
-    // Extract Weather Data
+    // ✅ SAFE PARSING: Weather Data (This was causing the crash)
     final Map<String, dynamic>? weatherData = analysisResult['weather_data'];
     final bool usedWeather = weatherData != null;
-    final double? avgTemp = usedWeather ? weatherData['avg_temp_30d'] : null;
+    final double? avgTemp = usedWeather
+        ? (weatherData['avg_temp_30d'] as num?)?.toDouble() // 👈 FIX IS HERE
+        : null;
 
     // Image conversion
     Uint8List? imageBytes;
@@ -120,9 +125,9 @@ class ResultPage extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                     child: imageBytes == null
                         ? const Icon(
-                            Icons.image_not_supported,
-                            color: Colors.white,
-                          )
+                      Icons.image_not_supported,
+                      color: Colors.white,
+                    )
                         : Image.memory(imageBytes, fit: BoxFit.contain),
                   ),
                 ),
@@ -166,6 +171,7 @@ class ResultPage extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 5),
+
                       // Confidence Bar
                       Padding(
                         padding: const EdgeInsets.symmetric(
@@ -190,13 +196,14 @@ class ResultPage extends StatelessWidget {
                               color: confidence > 70
                                   ? Colors.green
                                   : (confidence > 40
-                                        ? Colors.orange
-                                        : Colors.red),
+                                  ? Colors.orange
+                                  : Colors.red),
                             ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 15),
+
                       // AI Voting Summary
                       Container(
                         padding: const EdgeInsets.all(12),
@@ -214,7 +221,7 @@ class ResultPage extends StatelessWidget {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              "$voteCount out of $totalModels AI models agreed on this result.",
+                              "$voteCount out of $totalModels AI models agreed on this.",
                               style: TextStyle(
                                 color: Colors.blue[900],
                                 fontSize: isDesktop ? 14 : 12,
@@ -230,7 +237,7 @@ class ResultPage extends StatelessWidget {
 
                 const SizedBox(height: 25),
 
-                // 3. WEATHER ANALYSIS CARD (New)
+                // 3. WEATHER ANALYSIS CARD
                 if (usedWeather)
                   Container(
                     width: cardWidth,
@@ -276,14 +283,14 @@ class ResultPage extends StatelessWidget {
                               Text(
                                 "Avg Temp (30 Days): ${avgTemp?.toStringAsFixed(1)}°C",
                                 style: TextStyle(
-                                  color: Colors.brown,
+                                  color: Colors.brown[700],
                                   fontSize: 14,
                                 ),
                               ),
                               Text(
                                 "Result verified against local climate.",
                                 style: TextStyle(
-                                  color: Colors.brown,
+                                  color: Colors.brown[400],
                                   fontSize: 12,
                                   fontStyle: FontStyle.italic,
                                 ),
