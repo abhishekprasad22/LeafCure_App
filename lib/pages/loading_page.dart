@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'; // 👈 Added Import
+import 'config.dart';
 import 'result_page.dart';
 
 class LoadingPage extends StatefulWidget {
@@ -61,17 +62,7 @@ class _LoadingPageState extends State<LoadingPage> {
   }
 
   Future<void> _analyzeDisease() async {
-    // ---------------- CONFIGURATION ----------------
-    String baseUrl = kReleaseMode
-        ? 'http://your-production-server.com'
-        : (kIsWeb
-        ? 'http://localhost:8000'
-        : (Platform.isAndroid
-        ? 'http://10.0.2.2:8000'
-        : 'http://localhost:8000'));
-
-    final uri = Uri.parse('$baseUrl/analyze_leaf');
-    // -----------------------------------------------
+    final uri = EnvironmentConfig.endpoint('/analyze_leaf');
 
     try {
       var request = http.MultipartRequest('POST', uri);
