@@ -14,3 +14,8 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Troubleshooting
+
+- Android Google login error `ApiException: 10`:
+  - See [docs/google_signin_android_fix.md](docs/google_signin_android_fix.md)

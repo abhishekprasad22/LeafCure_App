@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -10,16 +12,40 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
+  static const _androidPackageName = 'com.flutter.leafcure';
+
+  String _googleWebClientId() {
+    final value = dotenv.env['GOOGLE_WEB_CLIENT_ID']?.trim() ?? '';
+    if (value.isEmpty) {
+      throw Exception(
+        'Missing GOOGLE_WEB_CLIENT_ID in .env. Add your Web Client ID and restart the app.',
+      );
+    }
+    return value;
+  }
+
+  bool _isApiException10(PlatformException error) {
+    final details = '${error.message ?? ''} ${error.details ?? ''}';
+    return error.code == GoogleSignIn.kSignInFailedError &&
+        details.contains('ApiException: 10');
+  }
+
+  String _errorMessageForUser(Object error) {
+    if (error is PlatformException && _isApiException10(error)) {
+      return 'Google login setup is incomplete for Android. '
+          'Use package $_androidPackageName and add SHA-1/SHA-256 in Google OAuth.';
+    }
+    return 'Login Failed: $error';
+  }
 
   Future<void> _googleSignIn() async {
     setState(() => _isLoading = true);
 
     try {
-      // 👇 REPLACE THIS with your actual Web Client ID from Google Cloud
-      const webClientId =
-          '402184687940-bpst73bofpvb6isv01pmjhkfsrbuthcu.apps.googleusercontent.com';
+      final webClientId = _googleWebClientId();
 
       final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: const ['email', 'profile', 'openid'],
         serverClientId: webClientId,
       );
 
@@ -56,8 +82,9 @@ class _LoginPageState extends State<LoginPage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Login Failed: $e'),
+            content: Text(_errorMessageForUser(e)),
             backgroundColor: Colors.red,
+            duration: const Duration(seconds: 6),
           ),
         );
       }
@@ -139,20 +166,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // import 'package:flutter/material.dart';
 // import 'home_page.dart';
