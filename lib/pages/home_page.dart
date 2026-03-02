@@ -1,74 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'capture_page.dart';
 import 'history_page.dart';
-import 'login_page.dart';
+import 'account_page.dart';
 
 class HomePage extends StatefulWidget {
+  const HomePage({super.key});
+
   @override
-  _HomePageState createState() => _HomePageState();
+  State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  String userName = "User";
-  String userEmail = "Loading...";
-  String? userAvatar;
   bool _useWeatherLogic = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _getUserData();
-  }
-
-  void _getUserData() {
-    final user = Supabase.instance.client.auth.currentUser;
-    if (user != null) {
-      setState(() {
-        userName = user.userMetadata?['full_name'] ?? "Tea Farmer";
-        userEmail = user.email ?? "";
-        userAvatar = user.userMetadata?['avatar_url'];
-      });
-    }
-  }
-
-  // 1. Logout Feature Implementation
-  Future<void> _handleLogout(
-    BuildContext context, {
-    bool isSwitching = false,
-  }) async {
-    try {
-      // Sign out from Supabase (Backend)
-      await Supabase.instance.client.auth.signOut();
-
-      // Sign out from Google (Frontend - clears cached credentials)
-      await GoogleSignIn().signOut();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              isSwitching ? "Switching Account..." : "Logged out successfully",
-            ),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        // Navigate back to Login Page and remove all previous routes
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => LoginPage()),
-          (route) => false,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text("Error logging out: $e")));
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,75 +48,29 @@ class _HomePageState extends State<HomePage> {
                   ],
                 ),
                 child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // ✅ Pop-up Menu for Logout/Switch
-                    PopupMenuButton<String>(
-                      onSelected: (value) {
-                        if (value == 'switch') {
-                          _handleLogout(context, isSwitching: true);
-                        } else if (value == 'logout') {
-                          _handleLogout(context);
-                        }
-                      },
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                          value: 'switch',
-                          child: Row(
-                            children: [
-                              Icon(Icons.switch_account, color: Colors.green),
-                              SizedBox(width: 10),
-                              Text("Switch Account"),
-                            ],
-                          ),
-                        ),
-                        const PopupMenuItem(
-                          value: 'logout',
-                          child: Row(
-                            children: [
-                              Icon(Icons.logout, color: Colors.red),
-                              SizedBox(width: 10),
-                              Text("Log Out"),
-                            ],
-                          ),
-                        ),
-                      ],
-                      child: CircleAvatar(
-                        radius: isDesktop ? 22 : 18,
-                        backgroundColor: Colors.white,
-                        backgroundImage: userAvatar != null
-                            ? NetworkImage(userAvatar!)
-                            : null,
-                        child: userAvatar == null
-                            ? Icon(
-                                Icons.person,
-                                color: Colors.green,
-                                size: isDesktop ? 26 : 20,
-                              )
-                            : null,
+                    IconButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const AccountPage()),
+                      ),
+                      icon: Icon(
+                        Icons.menu,
+                        color: Colors.white,
+                        size: isDesktop ? 30 : 26,
+                      ),
+                      tooltip: "Account",
+                    ),
+                    Text(
+                      "Leafcure",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: isDesktop ? 26 : 20,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.4,
                       ),
                     ),
-
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          "Hi, $userName",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: isDesktop ? 20 : 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        Text(
-                          userEmail,
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: isDesktop ? 16 : 12,
-                          ),
-                        ),
-                      ],
-                    ),
+                    SizedBox(width: isDesktop ? 30 : 26),
                   ],
                 ),
               ),
@@ -302,7 +199,9 @@ class _HomePageState extends State<HomePage> {
                                   ),
                                   onPressed: () => Navigator.of(context).push(
                                     MaterialPageRoute(
-                                      builder: (_) => CapturePage(useWeather: _useWeatherLogic),
+                                      builder: (_) => CapturePage(
+                                        useWeather: _useWeatherLogic,
+                                      ),
                                     ),
                                   ),
                                 ),

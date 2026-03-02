@@ -20,7 +20,6 @@ import 'package:supabase_flutter/supabase_flutter.dart'; // Import Supabase
 import './pages/login_page.dart'; // Check this path matches your folder structure
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -33,16 +32,18 @@ Future<void> main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
 
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Tea Leaf Disease Detector',
+      title: 'Leafcure',
       theme: ThemeData(primarySwatch: Colors.green),
-      home: LoginPage(),
+      home: const LoginPage(),
       debugShowCheckedModeBanner: false,
     );
   }
