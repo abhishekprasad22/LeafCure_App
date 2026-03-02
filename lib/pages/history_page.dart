@@ -11,6 +11,9 @@ class HistoryPage extends StatefulWidget {
 }
 
 class _HistoryPageState extends State<HistoryPage> {
+  static const String _bucketName = 'leaf_images';
+  static const int _signedUrlExpirySeconds = 3600;
+
   Future<List<Map<String, dynamic>>> _fetchHistory() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
     if (userId == null) return [];
@@ -22,22 +25,86 @@ class _HistoryPageState extends State<HistoryPage> {
           .eq('user_id', userId)
           .order('created_at', ascending: false);
 
-      return List<Map<String, dynamic>>.from(response);
+      final history = List<Map<String, dynamic>>.from(response);
+
+      // Resolve usable URLs once so card rendering remains simple.
+      final resolvedHistory = await Future.wait(
+        history.map((entry) async {
+          final resolvedImageUrl = await _resolveImageUrl(
+            entry['image_path']?.toString(),
+          );
+          return {...entry, 'resolved_image_url': resolvedImageUrl};
+        }),
+      );
+
+      return resolvedHistory;
     } catch (e) {
       debugPrint('Error fetching history: $e');
       return [];
     }
   }
 
-  String _getImageUrl(String? path) {
-    if (path == null || path.isEmpty) return '';
-    return Supabase.instance.client.storage.from('leaf_images').getPublicUrl(path);
+  String _extractObjectPath(String rawPath) {
+    var path = rawPath.trim();
+    if (path.isEmpty) return '';
+
+    const publicMarker = '/storage/v1/object/public/leaf_images/';
+    const signMarker = '/storage/v1/object/sign/leaf_images/';
+
+    if (path.contains(publicMarker)) {
+      path = path.split(publicMarker).last;
+    } else if (path.contains(signMarker)) {
+      path = path.split(signMarker).last.split('?').first;
+    } else if (path.startsWith('leaf_images/')) {
+      path = path.substring('leaf_images/'.length);
+    } else if (path.startsWith('/leaf_images/')) {
+      path = path.substring('/leaf_images/'.length);
+    } else if (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+
+    return Uri.decodeComponent(path);
+  }
+
+  Future<String> _resolveImageUrl(String? imagePath) async {
+    if (imagePath == null || imagePath.trim().isEmpty) return '';
+
+    final trimmed = imagePath.trim();
+    final uri = Uri.tryParse(trimmed);
+    final hasAbsoluteUrl = uri != null && uri.hasScheme && uri.host.isNotEmpty;
+
+    // Plain web URLs (legacy/external) can be used as-is.
+    if (hasAbsoluteUrl &&
+        !trimmed.contains('/storage/v1/object/public/leaf_images/') &&
+        !trimmed.contains('/storage/v1/object/sign/leaf_images/')) {
+      return trimmed;
+    }
+
+    final objectPath = _extractObjectPath(trimmed);
+    if (objectPath.isEmpty) return '';
+
+    final storage = Supabase.instance.client.storage.from(_bucketName);
+
+    try {
+      // Works for private buckets when user has policy access.
+      return await storage.createSignedUrl(objectPath, _signedUrlExpirySeconds);
+    } catch (e) {
+      debugPrint('Signed URL failed for $objectPath: $e');
+    }
+
+    // Fallback for public buckets.
+    try {
+      return storage.getPublicUrl(objectPath);
+    } catch (e) {
+      debugPrint('Public URL failed for $objectPath: $e');
+      return '';
+    }
   }
 
   // 🚀 NAVIGATE TO DETAILS
   void _openResult(BuildContext context, Map<String, dynamic> entry) {
     final Map<String, dynamic> analysisData = entry['analysis_data'] ?? {};
-    final String imageUrl = _getImageUrl(entry['image_path']);
+    final String imageUrl = entry['resolved_image_url']?.toString() ?? '';
 
     // If analysis_data is missing (old records), we reconstruct a basic version
     if (analysisData.isEmpty) {
@@ -63,7 +130,10 @@ class _HistoryPageState extends State<HistoryPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Past Predictions", style: TextStyle(color: Colors.white)),
+        title: const Text(
+          "Past Predictions",
+          style: TextStyle(color: Colors.white),
+        ),
         backgroundColor: const Color(0xFF2E7D32),
         centerTitle: true,
         iconTheme: const IconThemeData(color: Colors.white),
@@ -80,7 +150,9 @@ class _HistoryPageState extends State<HistoryPage> {
           future: _fetchHistory(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator(color: Colors.green));
+              return const Center(
+                child: CircularProgressIndicator(color: Colors.green),
+              );
             }
 
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -88,7 +160,11 @@ class _HistoryPageState extends State<HistoryPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.history_toggle_off, size: 80, color: Colors.green[200]),
+                    Icon(
+                      Icons.history_toggle_off,
+                      size: 80,
+                      color: Colors.green[200],
+                    ),
                     const SizedBox(height: 20),
                     Text(
                       "No history found.",
@@ -103,24 +179,26 @@ class _HistoryPageState extends State<HistoryPage> {
 
             return isDesktop
                 ? GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 3.5,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-              ),
-              itemCount: history.length,
-              itemBuilder: (context, i) => _buildCard(history[i], isDesktop),
-            )
+                    padding: const EdgeInsets.all(16),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 3.5,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                    itemCount: history.length,
+                    itemBuilder: (context, i) =>
+                        _buildCard(history[i], isDesktop),
+                  )
                 : ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: history.length,
-              itemBuilder: (context, i) => Padding(
-                padding: const EdgeInsets.only(bottom: 16.0),
-                child: _buildCard(history[i], isDesktop),
-              ),
-            );
+                    padding: const EdgeInsets.all(16),
+                    itemCount: history.length,
+                    itemBuilder: (context, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 16.0),
+                      child: _buildCard(history[i], isDesktop),
+                    ),
+                  );
           },
         ),
       ),
@@ -130,17 +208,19 @@ class _HistoryPageState extends State<HistoryPage> {
   Widget _buildCard(Map<String, dynamic> entry, bool isDesktop) {
     final String prediction = entry['prediction'] ?? 'Unknown';
     final double confidence = (entry['confidence'] as num?)?.toDouble() ?? 0.0;
-    final String dateStr = entry['created_at'] ?? DateTime.now().toIso8601String();
+    final String dateStr =
+        entry['created_at'] ?? DateTime.now().toIso8601String();
     final DateTime date = DateTime.parse(dateStr).toLocal();
     final String formattedDate = DateFormat('MMM d, y • h:mm a').format(date);
-    final String imageUrl = _getImageUrl(entry['image_path']);
+    final String imageUrl = entry['resolved_image_url']?.toString() ?? '';
 
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _openResult(context, entry), // 👈 Hooked up navigation here!
+        onTap: () =>
+            _openResult(context, entry), // 👈 Hooked up navigation here!
         child: Padding(
           padding: const EdgeInsets.all(12.0),
           child: Row(
@@ -153,11 +233,14 @@ class _HistoryPageState extends State<HistoryPage> {
                   color: Colors.grey[200],
                   child: imageUrl.isNotEmpty
                       ? Image.network(
-                    imageUrl,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.broken_image, color: Colors.grey),
-                  )
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) =>
+                              const Icon(
+                                Icons.broken_image,
+                                color: Colors.grey,
+                              ),
+                        )
                       : const Icon(Icons.image, color: Colors.grey),
                 ),
               ),
@@ -180,7 +263,11 @@ class _HistoryPageState extends State<HistoryPage> {
                     const SizedBox(height: 6),
                     Text(
                       "Confidence: ${confidence.toStringAsFixed(1)}%",
-                      style: TextStyle(fontSize: 14, color: Colors.grey[800], fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[800],
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -190,7 +277,11 @@ class _HistoryPageState extends State<HistoryPage> {
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]), // Visual cue
+              Icon(
+                Icons.arrow_forward_ios,
+                size: 16,
+                color: Colors.grey[400],
+              ), // Visual cue
             ],
           ),
         ),
