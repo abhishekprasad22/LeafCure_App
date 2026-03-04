@@ -13,6 +13,21 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   static const String _bucketName = 'leaf_images';
   static const int _signedUrlExpirySeconds = 3600;
+  bool _isDeleting = false;
+  String? _deletingEntryKey;
+  late Future<List<Map<String, dynamic>>> _historyFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _historyFuture = _fetchHistory();
+  }
+
+  void _refreshHistory() {
+    setState(() {
+      _historyFuture = _fetchHistory();
+    });
+  }
 
   Future<List<Map<String, dynamic>>> _fetchHistory() async {
     final userId = Supabase.instance.client.auth.currentUser?.id;
@@ -124,6 +139,149 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
+  String _entryKey(Map<String, dynamic> entry) {
+    final id = entry['id'];
+    if (id != null) return 'id_$id';
+
+    final createdAt = entry['created_at']?.toString() ?? '';
+    final imagePath = entry['image_path']?.toString() ?? '';
+    return 'fallback_${createdAt}_$imagePath';
+  }
+
+  Future<void> _confirmDeleteEntry(Map<String, dynamic> entry) async {
+    if (_isDeleting) return;
+
+    final confirmed =
+        await showDialog<bool>(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: const Text('Delete this prediction?'),
+              content: const Text(
+                'This will remove the prediction from your history.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('Cancel'),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+
+    if (!confirmed) return;
+    await _deleteEntry(entry);
+  }
+
+  Future<void> _deleteEntry(Map<String, dynamic> entry) async {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('You must be logged in to delete history.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final key = _entryKey(entry);
+    setState(() {
+      _isDeleting = true;
+      _deletingEntryKey = key;
+    });
+
+    try {
+      final recordId = entry['id'];
+
+      if (recordId != null) {
+        final deletedRows =
+            await Supabase.instance.client
+            .from('predictions')
+            .delete()
+            .eq('id', recordId)
+            .eq('user_id', userId)
+            .select('id');
+
+        if (deletedRows.isEmpty) {
+          throw Exception(
+            'No rows were deleted. Check Supabase DELETE policy on predictions.',
+          );
+        }
+      } else {
+        final createdAt = entry['created_at']?.toString() ?? '';
+        final imagePath = entry['image_path']?.toString() ?? '';
+
+        if (createdAt.isEmpty || imagePath.isEmpty) {
+          throw Exception('Missing record identifier for deletion.');
+        }
+
+        final deletedRows =
+            await Supabase.instance.client
+            .from('predictions')
+            .delete()
+            .eq('user_id', userId)
+            .eq('created_at', createdAt)
+            .eq('image_path', imagePath)
+            .select('id');
+
+        if (deletedRows.isEmpty) {
+          throw Exception(
+            'No rows were deleted. Check Supabase DELETE policy on predictions.',
+          );
+        }
+      }
+
+      final imagePathRaw = entry['image_path']?.toString() ?? '';
+      final objectPath = _extractObjectPath(imagePathRaw);
+
+      if (objectPath.isNotEmpty) {
+        try {
+          await Supabase.instance.client.storage.from(_bucketName).remove([
+            objectPath,
+          ]);
+        } catch (storageError) {
+          debugPrint('Image cleanup failed for $objectPath: $storageError');
+        }
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Prediction deleted from history.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      _refreshHistory();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to delete history entry: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isDeleting = false;
+          _deletingEntryKey = null;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isDesktop = MediaQuery.of(context).size.width > 800;
@@ -147,7 +305,7 @@ class _HistoryPageState extends State<HistoryPage> {
           ),
         ),
         child: FutureBuilder<List<Map<String, dynamic>>>(
-          future: _fetchHistory(),
+          future: _historyFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -213,6 +371,7 @@ class _HistoryPageState extends State<HistoryPage> {
     final DateTime date = DateTime.parse(dateStr).toLocal();
     final String formattedDate = DateFormat('MMM d, y • h:mm a').format(date);
     final String imageUrl = entry['resolved_image_url']?.toString() ?? '';
+    final bool isDeletingThis = _deletingEntryKey == _entryKey(entry);
 
     return Card(
       elevation: 4,
@@ -277,11 +436,37 @@ class _HistoryPageState extends State<HistoryPage> {
                   ],
                 ),
               ),
-              Icon(
-                Icons.arrow_forward_ios,
-                size: 16,
-                color: Colors.grey[400],
-              ), // Visual cue
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  isDeletingThis
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.4,
+                            color: Colors.red,
+                          ),
+                        )
+                      : IconButton(
+                          onPressed: _isDeleting
+                              ? null
+                              : () => _confirmDeleteEntry(entry),
+                          tooltip: 'Delete',
+                          splashRadius: 20,
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.red,
+                            size: 22,
+                          ),
+                        ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: Colors.grey[400],
+                  ),
+                ],
+              ),
             ],
           ),
         ),
