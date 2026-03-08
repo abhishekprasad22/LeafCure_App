@@ -1,0 +1,115 @@
+name: Android Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (for example: v1.0.1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Resolve release version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG_NAME="${{ github.event.inputs.release_tag }}"
+          else
+            TAG_NAME="${{ github.ref_name }}"
+          fi
+
+          if [[ ! "$TAG_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag must follow vMAJOR.MINOR.PATCH, got: $TAG_NAME" >&2
+            exit 1
+          fi
+
+          echo "TAG_NAME=$TAG_NAME" >> "$GITHUB_ENV"
+          echo "BUILD_NAME=${TAG_NAME#v}" >> "$GITHUB_ENV"
+
+      - name: Create runtime .env
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.APP_ENV_BASE64 }}" ]; then
+            echo "${{ secrets.APP_ENV_BASE64 }}" | base64 --decode > .env
+          elif [ -n "${{ secrets.APP_ENV_FILE }}" ]; then
+            printf "%s" "${{ secrets.APP_ENV_FILE }}" > .env
+          else
+            echo "Missing APP_ENV_BASE64 or APP_ENV_FILE secret." >&2
+            exit 1
+          fi
+
+      - name: Create Android signing files
+        shell: bash
+        run: |
+          if [ -z "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ] || \
+             [ -z "${{ secrets.ANDROID_STORE_PASSWORD }}" ] || \
+             [ -z "${{ secrets.ANDROID_KEY_ALIAS }}" ] || \
+             [ -z "${{ secrets.ANDROID_KEY_PASSWORD }}" ]; then
+            echo "Missing one or more Android signing secrets." >&2
+            exit 1
+          fi
+
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/upload-keystore.jks
+
+          {
+            echo "storeFile=../upload-keystore.jks"
+            echo "storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}"
+            echo "keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}"
+            echo "keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}"
+          } > android/key.properties
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release --build-name "${{ env.BUILD_NAME }}" --build-number "${{ github.run_number }}"
+
+      - name: Rename APK
+        shell: bash
+        run: |
+          APK_PATH="build/app/outputs/flutter-apk/app-release.apk"
+          OUTPUT_PATH="build/app/outputs/flutter-apk/LeafCure-${{ env.TAG_NAME }}-release.apk"
+          cp "$APK_PATH" "$OUTPUT_PATH"
+          echo "OUTPUT_PATH=$OUTPUT_PATH" >> "$GITHUB_ENV"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LeafCure-${{ env.TAG_NAME }}-release
+          path: ${{ env.OUTPUT_PATH }}
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG_NAME }}
+          target_commitish: ${{ github.sha }}
+          generate_release_notes: true
+          files: ${{ env.OUTPUT_PATH }}

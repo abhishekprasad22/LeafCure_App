@@ -19,3 +19,8 @@ samples, guidance on mobile development, and a full API reference.
 
 - Android Google login error `ApiException: 10`:
   - See [docs/google_signin_android_fix.md](docs/google_signin_android_fix.md)
+
+## Release
+
+- Android APK build and GitHub release process:
+  - See [docs/android_release_guide.md](docs/android_release_guide.md)
