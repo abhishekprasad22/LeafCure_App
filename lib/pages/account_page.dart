@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'how_to_use_page.dart';
 import 'login_page.dart';
 
 class AccountPage extends StatefulWidget {
@@ -83,12 +84,12 @@ class _AccountPageState extends State<AccountPage> {
             end: Alignment.bottomRight,
           ),
         ),
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isDesktop ? 120 : 24,
-              vertical: isDesktop ? 40 : 20,
-            ),
+        child: SingleChildScrollView(
+          padding: EdgeInsets.symmetric(
+            horizontal: isDesktop ? 120 : 24,
+            vertical: isDesktop ? 40 : 20,
+          ),
+          child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 450),
               child: Container(
@@ -132,6 +133,52 @@ class _AccountPageState extends State<AccountPage> {
                       ),
                     ),
                     const SizedBox(height: 28),
+                    Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE8F5E9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: const Color(0xFF81C784),
+                          width: 1.2,
+                        ),
+                      ),
+                      child: ListTile(
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const HowToUsePage(),
+                          ),
+                        ),
+                        leading: Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.menu_book_rounded,
+                            color: Color(0xFF2E7D32),
+                          ),
+                        ),
+                        title: const Text(
+                          "How to Use the App",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFF1B5E20),
+                          ),
+                        ),
+                        subtitle: const Text(
+                          "Easy guide with large icons and simple diagrams",
+                        ),
+                        trailing: const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 18,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
